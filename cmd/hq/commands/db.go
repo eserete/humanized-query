@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/eduardoserete/humanized-query/internal/config"
@@ -51,6 +52,9 @@ func dbListCmd() *cobra.Command {
 					DSN:     maskDSN(db.DSN),
 				})
 			}
+			sort.Slice(entries, func(i, j int) bool {
+				return entries[i].Name < entries[j].Name
+			})
 
 			result := map[string]interface{}{"databases": entries}
 			enc := json.NewEncoder(os.Stdout)
@@ -87,9 +91,6 @@ func maskDSN(dsn string) string {
 			// url.String() percent-encoding the asterisks as %2A.
 			username := u.User.Username()
 			host := u.Host
-			if u.Port() == "" {
-				// host already has no port
-			}
 			path := u.Path
 			if u.RawQuery != "" {
 				path += "?" + u.RawQuery
