@@ -20,24 +20,26 @@ Download the pre-compiled binary for your platform from the [latest release](htt
 
 **macOS (Apple Silicon — arm64):**
 ```bash
-curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-darwin-arm64.tar.gz | tar -xz
-chmod +x hq
-sudo mv hq /usr/local/bin/hq
+curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-darwin-arm64.tar.gz | tar -xz -C /tmp
+chmod +x /tmp/hq
+sudo mv /tmp/hq /usr/local/bin/hq
 ```
 
 **macOS (Intel — amd64):**
 ```bash
-curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-darwin-amd64.tar.gz | tar -xz
-chmod +x hq
-sudo mv hq /usr/local/bin/hq
+curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-darwin-amd64.tar.gz | tar -xz -C /tmp
+chmod +x /tmp/hq
+sudo mv /tmp/hq /usr/local/bin/hq
 ```
 
 **Linux (amd64):**
 ```bash
-curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-linux-amd64.tar.gz | tar -xz
-chmod +x hq
-sudo mv hq /usr/local/bin/hq
+curl -L https://github.com/eduardoserete/humanized-query/releases/latest/download/hq-linux-amd64.tar.gz | tar -xz -C /tmp
+chmod +x /tmp/hq
+sudo mv /tmp/hq /usr/local/bin/hq
 ```
+
+If you don't have `sudo` access, move the binary to any directory in your `$PATH`, e.g. `mv /tmp/hq ~/.local/bin/hq`.
 
 Verify:
 ```bash
