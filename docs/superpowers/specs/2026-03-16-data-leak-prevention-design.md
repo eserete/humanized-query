@@ -166,6 +166,11 @@ Any file written by `hq` under `~/.hq/` uses permissions `0600` (owner read/writ
 
 A shared helper `knowledge.WriteFile(path string, data []byte) error` is introduced to centralise this enforcement. All existing write paths are migrated to use it.
 
+Known write paths to migrate:
+1. `internal/audit/audit.go` — `Logger.Log` (already `0600`, verify only)
+2. `internal/cache/cache.go` — `Increment` writes `table_usage.json`
+3. Agent-layer writes to `glossary.md` and `mapping.json` via whatever file write call is currently used
+
 ---
 
 ## Layer 4: DSN via Environment Variable
@@ -217,6 +222,8 @@ WHERE GRANTEE = CONCAT("'", SUBSTRING_INDEX(CURRENT_USER(), '@', 1), "'@'", SUBS
 AND PRIVILEGE_TYPE IN ('INSERT','UPDATE','DELETE','DROP','ALTER','CREATE')
 ```
 
+> Note: The `GRANTEE` construction via `CONCAT`/`SUBSTRING_INDEX` may behave unexpectedly for users with `%` as host wildcard. Tests must cover this edge case.
+
 If write privileges are detected, `hq` emits a warning to stderr and continues:
 ```
 # warning: database user has write permissions — a read-only user is strongly recommended
@@ -240,7 +247,7 @@ After `masking.Apply`, each cell is passed through `sanitize.Apply(value)`.
 
 1. **Control characters:** bytes `\x00`–`\x1f` (excluding `\t`, `\n`, `\r`) are stripped.
 2. **SQL comment tokens:** occurrences of `--`, `/*`, `*/` are replaced with `[SQL-COMMENT]`.
-3. **Prompt injection phrases:** a fixed list of case-insensitive trigger phrases:
+3. **Prompt injection phrases:** a fixed, intentionally minimal list of case-insensitive trigger phrases (English-only; extensible in future iterations):
    - `ignore previous instructions`
    - `ignore all instructions`
    - `disregard previous`
