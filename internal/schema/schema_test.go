@@ -26,6 +26,16 @@ func TestNewIntrospector_mariadb(t *testing.T) {
 	}
 }
 
+func TestNewIntrospector_mysql(t *testing.T) {
+	i, err := schema.New("mysql")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if i == nil {
+		t.Error("expected non-nil introspector")
+	}
+}
+
 func TestNewIntrospector_unsupported(t *testing.T) {
 	_, err := schema.New("dynamodb")
 	if err == nil {

@@ -52,7 +52,7 @@ func (p *postgresIntrospector) loadColumns(db *sql.DB, s *Schema, tableFilter st
 	for rows.Next() {
 		var tableName, colName, dataType, isNullable string
 		if err := rows.Scan(&tableName, &colName, &dataType, &isNullable); err != nil {
-			return err
+			return fmt.Errorf("schema: scanning column row: %w", err)
 		}
 		t := s.Tables[tableName]
 		t.Columns = append(t.Columns, Column{
@@ -77,7 +77,8 @@ func (p *postgresIntrospector) loadPrimaryKeys(db *sql.DB, s *Schema, tableFilte
 		  ON tc.constraint_name = kcu.constraint_name
 		 AND tc.table_schema = kcu.table_schema
 		WHERE tc.constraint_type = 'PRIMARY KEY'
-		  AND tc.table_schema = 'public'`
+		  AND tc.table_schema = 'public'
+		ORDER BY kcu.ordinal_position`
 	if tableFilter != "" {
 		rows, err = db.Query(base+` AND kcu.table_name = $1`, tableFilter)
 	} else {
@@ -90,7 +91,7 @@ func (p *postgresIntrospector) loadPrimaryKeys(db *sql.DB, s *Schema, tableFilte
 	for rows.Next() {
 		var tableName, colName string
 		if err := rows.Scan(&tableName, &colName); err != nil {
-			return err
+			return fmt.Errorf("schema: scanning pk row: %w", err)
 		}
 		t := s.Tables[tableName]
 		t.PrimaryKey = append(t.PrimaryKey, colName)
@@ -113,6 +114,7 @@ func (p *postgresIntrospector) loadForeignKeys(db *sql.DB, s *Schema, tableFilte
 		FROM information_schema.table_constraints tc
 		JOIN information_schema.key_column_usage kcu
 		  ON tc.constraint_name = kcu.constraint_name
+		 AND tc.table_schema = kcu.table_schema
 		JOIN information_schema.constraint_column_usage ccu
 		  ON ccu.constraint_name = tc.constraint_name
 		WHERE tc.constraint_type = 'FOREIGN KEY'
@@ -129,7 +131,7 @@ func (p *postgresIntrospector) loadForeignKeys(db *sql.DB, s *Schema, tableFilte
 	for rows.Next() {
 		var tableName, colName, foreignTable, foreignCol string
 		if err := rows.Scan(&tableName, &colName, &foreignTable, &foreignCol); err != nil {
-			return err
+			return fmt.Errorf("schema: scanning fk row: %w", err)
 		}
 		t := s.Tables[tableName]
 		t.ForeignKeys = append(t.ForeignKeys, ForeignKey{
