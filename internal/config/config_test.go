@@ -23,7 +23,9 @@ knowledge:
   cache_top_n: 5
 `
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte(content), 0600)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
 
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -56,7 +58,9 @@ databases:
     dialect: postgres
 `
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte(content), 0600)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
 
 	cfg, err := config.Load(path)
 	if err != nil {
@@ -77,10 +81,15 @@ func TestDBConfig_notFound(t *testing.T) {
 	dir := t.TempDir()
 	content := `databases: {}`
 	path := filepath.Join(dir, "config.yaml")
-	os.WriteFile(path, []byte(content), 0600)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
 
-	cfg, _ := config.Load(path)
-	_, err := cfg.DB("missing")
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected load error: %v", err)
+	}
+	_, err = cfg.DB("missing")
 	if err == nil {
 		t.Fatal("expected error for missing db")
 	}
