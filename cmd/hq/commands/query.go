@@ -45,7 +45,7 @@ func queryCmd() *cobra.Command {
 
 			// Layer 2: lexical policy check
 			if err := policy.Check(sql, cfg.Execution.AllowedSchemas); err != nil {
-				logAudit(cfg, dbName, "rejected", err.Error(), sql, 0, 0)
+				logAudit(cfg, dbName, "rejected", err.Error(), sql, 0, 0, masking.BuiltinRules())
 				return writeError("forbidden_statement", err.Error())
 			}
 
@@ -59,7 +59,7 @@ func queryCmd() *cobra.Command {
 			if err != nil {
 				var le *executor.LimitExceededError
 				if isLimitExceeded(err, &le) {
-					logAudit(cfg, dbName, "rejected", "limit_exceeded", sql, 0, 0)
+					logAudit(cfg, dbName, "rejected", "limit_exceeded", sql, 0, 0, masking.BuiltinRules())
 					return writeLimitExceeded(le)
 				}
 				return writeError("query_error", err.Error())
@@ -72,21 +72,26 @@ func queryCmd() *cobra.Command {
 			}
 			defer db.Close()
 
+			rules, err := buildMaskingRules(cfg)
+			if err != nil {
+				return writeError("config_error", err.Error())
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(),
 				time.Duration(cfg.Execution.TimeoutSeconds)*time.Second)
 			defer cancel()
 
-			result, err := executor.StreamCSV(ctx, db, finalSQL, includeHeader, os.Stdout, masking.BuiltinRules())
+			result, err := executor.StreamCSV(ctx, db, finalSQL, includeHeader, os.Stdout, rules)
 			if err != nil {
 				if ctx.Err() != nil {
-					logAudit(cfg, dbName, "rejected", "timeout", sql, 0, 0)
+					logAudit(cfg, dbName, "rejected", "timeout", sql, 0, 0, rules)
 					return writeError("timeout", fmt.Sprintf("query exceeded %ds limit", cfg.Execution.TimeoutSeconds))
 				}
 				return writeError("query_error", err.Error())
 			}
 
 			durationMs := result.Duration.Milliseconds()
-			logAudit(cfg, dbName, "ok", "", sql, result.RowCount, durationMs)
+			logAudit(cfg, dbName, "ok", "", sql, result.RowCount, durationMs, rules)
 			updateCache(cfg, dbName, sql)
 
 			// Pagination metadata to stderr
@@ -122,14 +127,14 @@ func isLimitExceeded(err error, out **executor.LimitExceededError) bool {
 	return false
 }
 
-func logAudit(cfg *config.Config, dbName, status, errCode, sql string, rows int, durationMs int64) {
+func logAudit(cfg *config.Config, dbName, status, errCode, sql string, rows int, durationMs int64, rules []masking.Rule) {
 	dir, err := hqDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "# audit write failed: %v\n", err)
 		return
 	}
 	path := filepath.Join(dir, "audit.log")
-	logger := audit.New(path, masking.BuiltinRules())
+	logger := audit.New(path, rules)
 	if err := logger.Log(audit.Entry{
 		DB: dbName, Status: status, Error: errCode,
 		SQL: sql, RowCount: rows, DurationMs: durationMs,
@@ -160,4 +165,21 @@ func updateCache(cfg *config.Config, dbName, sql string) {
 	if err := c.Increment(dbName, tables); err != nil {
 		fmt.Fprintf(os.Stderr, "# cache write failed: %v\n", err)
 	}
+}
+
+// buildMaskingRules returns builtin rules + any custom rules from config.
+// Returns an error if a custom rule has an invalid regex.
+func buildMaskingRules(cfg *config.Config) ([]masking.Rule, error) {
+	rules := masking.BuiltinRules()
+	if cfg.Masking == nil {
+		return rules, nil
+	}
+	for _, r := range cfg.Masking.Rules {
+		re, err := regexp.Compile(r.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("masking rule %q has invalid regex: %w", r.Name, err)
+		}
+		rules = append(rules, masking.Rule{Name: r.Name, Re: re, Replacement: r.Replacement})
+	}
+	return rules, nil
 }
