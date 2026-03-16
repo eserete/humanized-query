@@ -77,12 +77,12 @@ func (m *mariadbIntrospector) loadPrimaryKeys(db *sql.DB, s *Schema, tableFilter
 		  ON tc.constraint_name = kcu.constraint_name
 		 AND tc.table_schema = kcu.table_schema
 		WHERE tc.constraint_type = 'PRIMARY KEY'
-		  AND tc.table_schema = DATABASE()
-		ORDER BY kcu.ordinal_position`
+		  AND tc.table_schema = DATABASE()`
+	orderBy := ` ORDER BY kcu.ordinal_position`
 	if tableFilter != "" {
-		rows, err = db.Query(base+` AND kcu.table_name = ?`, tableFilter)
+		rows, err = db.Query(base+` AND kcu.table_name = ?`+orderBy, tableFilter)
 	} else {
-		rows, err = db.Query(base)
+		rows, err = db.Query(base + orderBy)
 	}
 	if err != nil {
 		return fmt.Errorf("schema: pk query failed: %w", err)
