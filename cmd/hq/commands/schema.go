@@ -54,6 +54,10 @@ func schemaCmd() *cobra.Command {
 				return writeError("introspection_error", err.Error())
 			}
 
+			if s == nil {
+				return writeError("introspection_error", "introspector returned nil schema")
+			}
+
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(s)

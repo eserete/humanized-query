@@ -5,15 +5,18 @@ import (
 	"fmt"
 )
 
-type postgresIntrospector struct{}
+type postgresIntrospector struct {
+	dialect string
+}
 
 func (p *postgresIntrospector) Introspect(db *sql.DB, dbName, tableFilter string) (*Schema, error) {
 	s := &Schema{
 		Database: dbName,
-		Dialect:  "postgres",
+		Dialect:  p.dialect,
 		Tables:   make(map[string]Table),
 	}
 
+	// loadColumns must run first — loadPrimaryKeys and loadForeignKeys reference tables by name
 	if err := p.loadColumns(db, s, tableFilter); err != nil {
 		return nil, err
 	}

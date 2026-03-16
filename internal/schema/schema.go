@@ -42,9 +42,9 @@ type Introspector interface {
 func New(dialect string) (Introspector, error) {
 	switch dialect {
 	case "postgres":
-		return &postgresIntrospector{}, nil
+		return &postgresIntrospector{dialect: dialect}, nil
 	case "mariadb", "mysql":
-		return &mariadbIntrospector{}, nil
+		return &mariadbIntrospector{dialect: dialect}, nil
 	default:
 		return nil, fmt.Errorf("unsupported dialect: %q", dialect)
 	}

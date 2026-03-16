@@ -5,15 +5,18 @@ import (
 	"fmt"
 )
 
-type mariadbIntrospector struct{}
+type mariadbIntrospector struct {
+	dialect string
+}
 
 func (m *mariadbIntrospector) Introspect(db *sql.DB, dbName, tableFilter string) (*Schema, error) {
 	s := &Schema{
 		Database: dbName,
-		Dialect:  "mariadb",
+		Dialect:  m.dialect,
 		Tables:   make(map[string]Table),
 	}
 
+	// loadColumns must run first — loadPrimaryKeys and loadForeignKeys reference tables by name
 	if err := m.loadColumns(db, s, tableFilter); err != nil {
 		return nil, err
 	}
