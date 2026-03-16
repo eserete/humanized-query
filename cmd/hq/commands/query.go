@@ -3,8 +3,10 @@ package commands
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -73,9 +75,7 @@ func queryCmd() *cobra.Command {
 			defer db.Close()
 
 			// Layer 5: warn if DB user has write privileges
-			if isReadOnly, roErr := adapter.CheckReadOnly(db); roErr == nil && !isReadOnly {
-				fmt.Fprintf(os.Stderr, "# warning: database user has write permissions — a read-only user is strongly recommended\n")
-			}
+			checkReadOnlyAndWarn(adapter, db, os.Stderr)
 
 			rules, err := buildMaskingRules(cfg)
 			if err != nil {
@@ -187,4 +187,13 @@ func buildMaskingRules(cfg *config.Config) ([]masking.Rule, error) {
 		rules = append(rules, masking.Rule{Name: r.Name, Re: re, Replacement: r.Replacement})
 	}
 	return rules, nil
+}
+
+// checkReadOnlyAndWarn calls adapter.CheckReadOnly and writes a warning to w
+// if the database user has write privileges. Errors from CheckReadOnly are silently
+// ignored (the warning is best-effort; a privilege check failure should not block queries).
+func checkReadOnlyAndWarn(adapter executor.Adapter, db *sql.DB, w io.Writer) {
+	if isReadOnly, err := adapter.CheckReadOnly(db); err == nil && !isReadOnly {
+		fmt.Fprintf(w, "# warning: database user has write permissions — a read-only user is strongly recommended\n")
+	}
 }
