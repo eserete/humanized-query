@@ -51,15 +51,14 @@ jobs:
           for target in "${targets[@]}"; do
             GOOS="${target%/*}"
             GOARCH="${target#*/}"
-            output="dist/hq-${GOOS}-${GOARCH}"
-            echo "Building $GOOS/$GOARCH -> $output"
+            echo "Building $GOOS/$GOARCH"
             GOOS=$GOOS GOARCH=$GOARCH go build \
               -ldflags="-s -w" \
-              -o "$output" \
+              -o dist/hq \
               ./cmd/hq
             tar -czf "dist/hq-${GOOS}-${GOARCH}.tar.gz" \
-              -C dist "hq-${GOOS}-${GOARCH}"
-            rm "$output"
+              -C dist hq
+            rm dist/hq
           done
 
       - name: Create GitHub Release
