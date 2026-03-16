@@ -28,7 +28,7 @@ func New(dialect string) (Adapter, error) {
 	case "mariadb", "mysql":
 		return &mariadbAdapter{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported dialect: %q", dialect)
+		return nil, fmt.Errorf("unsupported dialect %s; supported: postgres, mariadb, mysql", dialect)
 	}
 }
 

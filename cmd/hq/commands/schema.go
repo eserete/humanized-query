@@ -30,7 +30,7 @@ func schemaCmd() *cobra.Command {
 
 			dbCfg, err := cfg.DB(dbName)
 			if err != nil {
-				return writeError("db_not_found", fmt.Sprintf("no database configured with name %q", dbName))
+				return writeError("db_not_found", fmt.Sprintf("no database named %s in ~/.hq/config.yaml", dbName))
 			}
 
 			adapter, err := executor.New(dbCfg.Dialect)

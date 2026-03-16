@@ -79,6 +79,7 @@ func (m *mariadbIntrospector) loadPrimaryKeys(db *sql.DB, s *Schema, tableFilter
 		JOIN information_schema.key_column_usage kcu
 		  ON tc.constraint_name = kcu.constraint_name
 		 AND tc.table_schema = kcu.table_schema
+		 AND tc.table_name = kcu.table_name
 		WHERE tc.constraint_type = 'PRIMARY KEY'
 		  AND tc.table_schema = DATABASE()`
 	orderBy := ` ORDER BY kcu.ordinal_position`
@@ -118,6 +119,7 @@ func (m *mariadbIntrospector) loadForeignKeys(db *sql.DB, s *Schema, tableFilter
 		JOIN information_schema.table_constraints tc
 		  ON tc.constraint_name = kcu.constraint_name
 		 AND tc.table_schema = kcu.table_schema
+		 AND tc.table_name = kcu.table_name
 		WHERE tc.constraint_type = 'FOREIGN KEY'
 		  AND kcu.table_schema = DATABASE()`
 	if tableFilter != "" {

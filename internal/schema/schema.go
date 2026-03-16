@@ -46,6 +46,6 @@ func New(dialect string) (Introspector, error) {
 	case "mariadb", "mysql":
 		return &mariadbIntrospector{dialect: dialect}, nil
 	default:
-		return nil, fmt.Errorf("unsupported dialect: %q", dialect)
+		return nil, fmt.Errorf("unsupported dialect %s; supported: postgres, mariadb, mysql", dialect)
 	}
 }
