@@ -36,6 +36,9 @@ func (p *Pagination) NextOffset() int {
 // BuildQuery applies limit logic and returns the final query + optional pagination info.
 // Returns LimitExceededError if user-specified LIMIT exceeds maxRows.
 func BuildQuery(a Adapter, query string, offset, maxRows int) (string, *Pagination, error) {
+	if maxRows <= 0 {
+		return "", nil, fmt.Errorf("maxRows must be > 0, got %d", maxRows)
+	}
 	has, n, err := a.HasLimit(query)
 	if err != nil {
 		return "", nil, err
@@ -100,7 +103,11 @@ func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool
 		}
 		record := make([]string, len(cols))
 		for i, v := range vals {
-			record[i] = fmt.Sprintf("%v", v)
+			if v == nil {
+				record[i] = ""
+			} else {
+				record[i] = fmt.Sprintf("%v", v)
+			}
 		}
 		if err := cw.Write(record); err != nil {
 			return nil, err
@@ -110,6 +117,9 @@ func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	if err := cw.Error(); err != nil {
+		return nil, fmt.Errorf("csv write error: %w", err)
 	}
 
 	return &Result{

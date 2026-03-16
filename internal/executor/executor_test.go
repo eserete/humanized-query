@@ -198,3 +198,37 @@ func TestStreamCSV_rowsErr(t *testing.T) {
 		t.Error("expected error from rows.Err()")
 	}
 }
+
+func TestBuildQuery_maxRowsZero_returnsError(t *testing.T) {
+	a, _ := executor.New("postgres")
+	_, _, err := executor.BuildQuery(a, "SELECT id FROM users", 0, 0)
+	if err == nil {
+		t.Fatal("expected error for maxRows=0")
+	}
+}
+
+func TestStreamCSV_nullValue(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"id", "name"}).
+		AddRow(1, nil)
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	var buf bytes.Buffer
+	result, err := executor.StreamCSV(context.Background(), db, "SELECT id, name FROM users", false, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.RowCount != 1 {
+		t.Errorf("expected 1 row, got %d", result.RowCount)
+	}
+	// NULL value should produce empty CSV field
+	if !strings.Contains(buf.String(), "1,") {
+		t.Errorf("unexpected CSV output: %s", buf.String())
+	}
+	// The name field should be empty (not "<nil>")
+	if strings.Contains(buf.String(), "<nil>") {
+		t.Errorf("NULL value should not produce <nil> in CSV, got: %s", buf.String())
+	}
+}
