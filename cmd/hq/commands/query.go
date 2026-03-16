@@ -72,6 +72,11 @@ func queryCmd() *cobra.Command {
 			}
 			defer db.Close()
 
+			// Layer 5: warn if DB user has write privileges
+			if isReadOnly, roErr := adapter.CheckReadOnly(db); roErr == nil && !isReadOnly {
+				fmt.Fprintf(os.Stderr, "# warning: database user has write permissions — a read-only user is strongly recommended\n")
+			}
+
 			rules, err := buildMaskingRules(cfg)
 			if err != nil {
 				return writeError("config_error", err.Error())
