@@ -39,15 +39,17 @@ func (l *Logger) Log(e Entry) error {
 	}
 	defer f.Close()
 
-	line := fmt.Sprintf("%s db=%s status=%s", time.Now().UTC().Format(time.RFC3339), e.DB, e.Status)
+	line := fmt.Sprintf("%s db=%q status=%q", time.Now().UTC().Format(time.RFC3339), e.DB, e.Status)
 	if e.Status == "ok" {
 		line += fmt.Sprintf(" rows=%d duration_ms=%d", e.RowCount, e.DurationMs)
 	}
 	if e.Error != "" {
-		line += fmt.Sprintf(" error=%s", e.Error)
+		line += fmt.Sprintf(" error=%q", e.Error)
 	}
 	line += fmt.Sprintf(" sql=%q\n", e.SQL)
 
-	_, err = f.WriteString(line)
-	return err
+	if _, err = f.WriteString(line); err != nil {
+		return fmt.Errorf("audit: write failed: %w", err)
+	}
+	return nil
 }

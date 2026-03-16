@@ -27,10 +27,10 @@ func TestLog_writesEntry(t *testing.T) {
 
 	data, _ := os.ReadFile(path)
 	line := string(data)
-	if !strings.Contains(line, "db=postgres_main") {
+	if !strings.Contains(line, `db="postgres_main"`) {
 		t.Errorf("expected db field in log, got: %s", line)
 	}
-	if !strings.Contains(line, "status=ok") {
+	if !strings.Contains(line, `status="ok"`) {
 		t.Errorf("expected status field in log, got: %s", line)
 	}
 	if !strings.Contains(line, `sql="SELECT id FROM users LIMIT 10"`) {
@@ -43,8 +43,12 @@ func TestLog_appendsEntries(t *testing.T) {
 	path := filepath.Join(dir, "audit.log")
 	a := audit.New(path)
 
-	a.Log(audit.Entry{DB: "db1", Status: "ok", SQL: "SELECT 1"})
-	a.Log(audit.Entry{DB: "db1", Status: "rejected", SQL: "DELETE FROM x"})
+	if err := a.Log(audit.Entry{DB: "db1", Status: "ok", SQL: "SELECT 1"}); err != nil {
+		t.Fatalf("first log failed: %v", err)
+	}
+	if err := a.Log(audit.Entry{DB: "db1", Status: "rejected", SQL: "DELETE FROM x"}); err != nil {
+		t.Fatalf("second log failed: %v", err)
+	}
 
 	data, _ := os.ReadFile(path)
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
@@ -69,7 +73,10 @@ func TestLog_rejectedEntry(t *testing.T) {
 	}
 
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), "error=forbidden_statement") {
+	if !strings.Contains(string(data), `error="forbidden_statement"`) {
 		t.Errorf("expected error field in log, got: %s", string(data))
+	}
+	if strings.Contains(string(data), "rows=") {
+		t.Errorf("rejected entry should not contain rows field, got: %s", string(data))
 	}
 }
