@@ -297,3 +297,132 @@ func TestStreamCSV_noRules_passthrough(t *testing.T) {
 		t.Errorf("expected alice in output, got: %s", buf.String())
 	}
 }
+
+// --- CheckReadOnly tests ---
+// These tests use go-sqlmock to simulate the privilege query responses.
+// newMockDB(t) is defined earlier in this file.
+
+func TestCheckReadOnly_postgres_noWritePrivs_returnsTrue(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	// Simulate has_database_privilege returning false (no CREATE privilege → read-only)
+	rows := sqlmock.NewRows([]string{"has_database_privilege"}).AddRow(false)
+	mock.ExpectQuery(`has_database_privilege`).WillReturnRows(rows)
+
+	a, _ := executor.New("postgres")
+	readOnly, err := a.CheckReadOnly(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !readOnly {
+		t.Error("expected readOnly=true when DB user has no CREATE privilege")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}
+
+func TestCheckReadOnly_postgres_hasWritePrivs_returnsFalse(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	// Simulate has_database_privilege returning true (has CREATE privilege → not read-only)
+	rows := sqlmock.NewRows([]string{"has_database_privilege"}).AddRow(true)
+	mock.ExpectQuery(`has_database_privilege`).WillReturnRows(rows)
+
+	a, _ := executor.New("postgres")
+	readOnly, err := a.CheckReadOnly(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if readOnly {
+		t.Error("expected readOnly=false when DB user has CREATE privilege")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}
+
+func TestCheckReadOnly_mariadb_noWritePrivs_returnsTrue(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	// Simulate USER_PRIVILEGES query returning count=0 (no write privileges)
+	rows := sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(0)
+	mock.ExpectQuery(`information_schema`).WillReturnRows(rows)
+
+	a, _ := executor.New("mariadb")
+	readOnly, err := a.CheckReadOnly(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !readOnly {
+		t.Error("expected readOnly=true when DB user has no write privileges")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}
+
+func TestCheckReadOnly_mariadb_hasWritePrivs_returnsFalse(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	// Simulate USER_PRIVILEGES query returning count=3 (has write privileges)
+	rows := sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(3)
+	mock.ExpectQuery(`information_schema`).WillReturnRows(rows)
+
+	a, _ := executor.New("mariadb")
+	readOnly, err := a.CheckReadOnly(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if readOnly {
+		t.Error("expected readOnly=false when DB user has write privileges")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}
+
+func TestCheckReadOnly_mariadb_percentHostWildcard_returnsFalse(t *testing.T) {
+	// The spec notes: "Users with '%' as host wildcard are matched correctly
+	// because CURRENT_USER() returns the matched host." This test simulates that
+	// scenario: CURRENT_USER() returns 'user'@'%', the GRANTEE construction via
+	// CONCAT/SUBSTRING_INDEX produces "'user'@'%'", which matches the USER_PRIVILEGES
+	// row. A count > 0 should return false (has write privs).
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(2)
+	mock.ExpectQuery(`information_schema`).WillReturnRows(rows)
+
+	a, _ := executor.New("mariadb")
+	readOnly, err := a.CheckReadOnly(db)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if readOnly {
+		t.Error("expected readOnly=false when DB user with %% host has write privileges")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}
+
+func TestCheckReadOnly_queryError_returnsError(t *testing.T) {
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	mock.ExpectQuery(`has_database_privilege`).WillReturnError(errors.New("connection lost"))
+
+	a, _ := executor.New("postgres")
+	_, err := a.CheckReadOnly(db)
+	if err == nil {
+		t.Error("expected error when privilege query fails")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled sqlmock expectations: %v", err)
+	}
+}

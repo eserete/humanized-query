@@ -17,6 +17,11 @@ type Adapter interface {
 	InjectLimit(query string, maxRows, offset int) string
 	// HasLimit returns true if the query already contains a LIMIT clause.
 	HasLimit(query string) (bool, int, error)
+	// CheckReadOnly queries the database server to determine whether the current
+	// session user has any write privileges. Returns true if the user is
+	// effectively read-only (no write privs detected), false if write privs are
+	// present. Returns an error only if the privilege query itself fails.
+	CheckReadOnly(db *sql.DB) (bool, error)
 }
 
 // New returns the adapter for the given dialect.
