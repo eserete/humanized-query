@@ -39,3 +39,12 @@ func TestPostgresAdapter_HasLimit_false(t *testing.T) {
 		t.Errorf("expected has=false, got has=%v err=%v", has, err)
 	}
 }
+
+func TestPostgresAdapter_InjectLimit_trailingSemicolon(t *testing.T) {
+	a, _ := executor.New("postgres")
+	q := a.InjectLimit("SELECT id FROM users;", 100, 0)
+	expected := "SELECT id FROM users LIMIT 100 OFFSET 0"
+	if q != expected {
+		t.Errorf("got %q, want %q", q, expected)
+	}
+}

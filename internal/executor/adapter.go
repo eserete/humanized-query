@@ -4,6 +4,9 @@ package executor
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // Adapter abstracts dialect-specific behavior.
@@ -27,4 +30,25 @@ func New(dialect string) (Adapter, error) {
 	default:
 		return nil, fmt.Errorf("unsupported dialect: %q", dialect)
 	}
+}
+
+var limitRe = regexp.MustCompile(`(?i)\bLIMIT\s+(\d+)`)
+
+// hasLimit is a shared implementation used by both adapters.
+func hasLimit(query string) (bool, int, error) {
+	m := limitRe.FindStringSubmatch(query)
+	if m == nil {
+		return false, 0, nil
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return false, 0, fmt.Errorf("invalid LIMIT value: %w", err)
+	}
+	return true, n, nil
+}
+
+// injectLimit is a shared implementation used by both adapters.
+func injectLimit(query string, maxRows, offset int) string {
+	query = strings.TrimRight(strings.TrimSpace(query), ";")
+	return fmt.Sprintf("%s LIMIT %d OFFSET %d", query, maxRows, offset)
 }

@@ -4,9 +4,6 @@ package executor
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -14,30 +11,22 @@ import (
 type postgresAdapter struct{}
 
 func (a *postgresAdapter) Open(dsn string) (*sql.DB, error) {
-	// Append read-only session parameter
-	sep := "?"
-	if strings.Contains(dsn, "?") {
-		sep = "&"
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
 	}
-	dsn = dsn + sep + "options=-c+default_transaction_read_only%3Don"
-	return sql.Open("postgres", dsn)
+	// Enforce read-only at session level — works for both URL and key=value DSN formats.
+	if _, err := db.Exec("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("postgres: failed to set read-only: %w", err)
+	}
+	return db, nil
 }
 
-var limitRe = regexp.MustCompile(`(?i)\bLIMIT\s+(\d+)`)
-
 func (a *postgresAdapter) HasLimit(query string) (bool, int, error) {
-	m := limitRe.FindStringSubmatch(query)
-	if m == nil {
-		return false, 0, nil
-	}
-	n, err := strconv.Atoi(m[1])
-	if err != nil {
-		return false, 0, fmt.Errorf("invalid LIMIT value: %w", err)
-	}
-	return true, n, nil
+	return hasLimit(query)
 }
 
 func (a *postgresAdapter) InjectLimit(query string, maxRows, offset int) string {
-	query = strings.TrimRight(strings.TrimSpace(query), ";")
-	return fmt.Sprintf("%s LIMIT %d OFFSET %d", query, maxRows, offset)
+	return injectLimit(query, maxRows, offset)
 }
