@@ -65,3 +65,19 @@ func TestCheck_schemaRestriction_empty(t *testing.T) {
 		t.Errorf("expected no error when no schema restriction: %v", err)
 	}
 }
+
+func TestCheck_blocksForbiddenTokens_replace(t *testing.T) {
+	err := policy.Check("REPLACE INTO users VALUES (1, 'x')", nil)
+	if err == nil {
+		t.Error("expected error for REPLACE INTO")
+	}
+}
+
+func TestCheck_schemaRestriction_aliasNotFlagged(t *testing.T) {
+	allowed := []string{"public"}
+	// Table alias t.id should NOT be flagged as a schema violation
+	err := policy.Check("SELECT t.id, t.name FROM public.users t", allowed)
+	if err != nil {
+		t.Errorf("expected no error for alias usage, got: %v", err)
+	}
+}
