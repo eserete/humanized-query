@@ -7,7 +7,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"os"
 	"time"
+
+	"github.com/eduardoserete/humanized-query/internal/masking"
+	"github.com/eduardoserete/humanized-query/internal/sanitize"
 )
 
 // LimitExceededError is returned when a query requests more rows than allowed.
@@ -69,7 +73,8 @@ type Result struct {
 
 // StreamCSV executes query against db, writes CSV rows to w, and returns Result.
 // If includeHeader is true, writes column names as first CSV line.
-func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool, w io.Writer) (*Result, error) {
+// rules are applied to each cell value (masking + injection sanitization).
+func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool, w io.Writer, rules []masking.Rule) (*Result, error) {
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
@@ -103,11 +108,22 @@ func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool
 		}
 		record := make([]string, len(cols))
 		for i, v := range vals {
+			var cell string
 			if v == nil {
-				record[i] = ""
+				cell = ""
 			} else {
-				record[i] = fmt.Sprintf("%v", v)
+				cell = fmt.Sprintf("%v", v)
 			}
+			// Layer 1: PII masking
+			if len(rules) > 0 {
+				cell = masking.Apply(cell, rules)
+			}
+			// Layer 6: prompt injection sanitization
+			sanitized := sanitize.Apply(cell)
+			if sanitized == "[REDACTED:injection-risk]" {
+				fmt.Fprintf(os.Stderr, "# warning: possible prompt injection detected in query results — cell redacted\n")
+			}
+			record[i] = sanitized
 		}
 		if err := cw.Write(record); err != nil {
 			return nil, err

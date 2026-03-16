@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/eduardoserete/humanized-query/internal/audit"
+	"github.com/eduardoserete/humanized-query/internal/masking"
 )
 
 func TestLog_writesEntry(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit.log")
 
-	a := audit.New(path)
+	a := audit.New(path, nil)
 	err := a.Log(audit.Entry{
 		DB:         "postgres_main",
 		Status:     "ok",
@@ -41,7 +42,7 @@ func TestLog_writesEntry(t *testing.T) {
 func TestLog_appendsEntries(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit.log")
-	a := audit.New(path)
+	a := audit.New(path, nil)
 
 	if err := a.Log(audit.Entry{DB: "db1", Status: "ok", SQL: "SELECT 1"}); err != nil {
 		t.Fatalf("first log failed: %v", err)
@@ -60,7 +61,7 @@ func TestLog_appendsEntries(t *testing.T) {
 func TestLog_rejectedEntry(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit.log")
-	a := audit.New(path)
+	a := audit.New(path, nil)
 
 	err := a.Log(audit.Entry{
 		DB:     "mydb",
@@ -78,5 +79,50 @@ func TestLog_rejectedEntry(t *testing.T) {
 	}
 	if strings.Contains(string(data), "rows=") {
 		t.Errorf("rejected entry should not contain rows field, got: %s", string(data))
+	}
+}
+
+func TestLog_masksSQLEmail(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.log")
+
+	rules := masking.BuiltinRules()
+	logger := audit.New(path, rules)
+
+	err := logger.Log(audit.Entry{
+		DB:     "prod",
+		Status: "ok",
+		SQL:    "SELECT * FROM users WHERE email = 'joao@empresa.com'",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	b, _ := os.ReadFile(path)
+	content := string(b)
+	if strings.Contains(content, "joao@empresa.com") {
+		t.Errorf("email should be masked in audit log, got: %s", content)
+	}
+	if !strings.Contains(content, "***@***.***") {
+		t.Errorf("expected masked email in audit log, got: %s", content)
+	}
+}
+
+func TestLog_noRules_logsAsIs(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.log")
+
+	logger := audit.New(path, nil)
+	err := logger.Log(audit.Entry{
+		DB:     "prod",
+		Status: "ok",
+		SQL:    "SELECT id FROM users",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := os.ReadFile(path)
+	if !strings.Contains(string(b), "SELECT id FROM users") {
+		t.Errorf("SQL should be logged as-is when no rules, got: %s", string(b))
 	}
 }

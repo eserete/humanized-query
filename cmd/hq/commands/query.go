@@ -15,6 +15,7 @@ import (
 	"github.com/eduardoserete/humanized-query/internal/cache"
 	"github.com/eduardoserete/humanized-query/internal/config"
 	"github.com/eduardoserete/humanized-query/internal/executor"
+	"github.com/eduardoserete/humanized-query/internal/masking"
 	"github.com/eduardoserete/humanized-query/internal/policy"
 	"github.com/spf13/cobra"
 )
@@ -75,7 +76,7 @@ func queryCmd() *cobra.Command {
 				time.Duration(cfg.Execution.TimeoutSeconds)*time.Second)
 			defer cancel()
 
-			result, err := executor.StreamCSV(ctx, db, finalSQL, includeHeader, os.Stdout)
+			result, err := executor.StreamCSV(ctx, db, finalSQL, includeHeader, os.Stdout, masking.BuiltinRules())
 			if err != nil {
 				if ctx.Err() != nil {
 					logAudit(cfg, dbName, "rejected", "timeout", sql, 0, 0)
@@ -128,7 +129,7 @@ func logAudit(cfg *config.Config, dbName, status, errCode, sql string, rows int,
 		return
 	}
 	path := filepath.Join(dir, "audit.log")
-	logger := audit.New(path)
+	logger := audit.New(path, masking.BuiltinRules())
 	if err := logger.Log(audit.Entry{
 		DB: dbName, Status: status, Error: errCode,
 		SQL: sql, RowCount: rows, DurationMs: durationMs,
