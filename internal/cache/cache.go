@@ -93,5 +93,8 @@ func (c *Cache) save(data usageData) error {
 	if err != nil {
 		return fmt.Errorf("cache: marshal failed: %w", err)
 	}
-	return os.WriteFile(c.path, b, 0600)
+	if err := os.WriteFile(c.path, b, 0600); err != nil {
+		return fmt.Errorf("cache: write failed: %w", err)
+	}
+	return nil
 }
