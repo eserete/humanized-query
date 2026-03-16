@@ -3,7 +3,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -29,7 +28,10 @@ func queryCmd() *cobra.Command {
 		Use:   "query",
 		Short: "Execute a read-only SQL query and stream CSV results",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfgPath := configPath()
+			cfgPath, err := configPath()
+			if err != nil {
+				return writeError("config_error", err.Error())
+			}
 			cfg, err := config.Load(cfgPath)
 			if err != nil {
 				return writeError("config_error", err.Error())
@@ -110,25 +112,6 @@ func queryCmd() *cobra.Command {
 	return cmd
 }
 
-func writeError(code, detail string) error {
-	b, _ := json.Marshal(map[string]string{"error": code, "detail": detail})
-	fmt.Fprintln(os.Stderr, string(b))
-	os.Exit(1)
-	return nil
-}
-
-func writeLimitExceeded(le *executor.LimitExceededError) error {
-	b, _ := json.Marshal(map[string]interface{}{
-		"error":       "limit_exceeded",
-		"requested":   le.Requested,
-		"max_allowed": le.MaxAllowed,
-		"query":       le.Query,
-	})
-	fmt.Fprintln(os.Stderr, string(b))
-	os.Exit(1)
-	return nil
-}
-
 func isLimitExceeded(err error, out **executor.LimitExceededError) bool {
 	var le *executor.LimitExceededError
 	if ok := errors.As(err, &le); ok {
@@ -139,7 +122,12 @@ func isLimitExceeded(err error, out **executor.LimitExceededError) bool {
 }
 
 func logAudit(cfg *config.Config, dbName, status, errCode, sql string, rows int, durationMs int64) {
-	path := filepath.Join(hqDir(), "audit.log")
+	dir, err := hqDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "# audit write failed: %v\n", err)
+		return
+	}
+	path := filepath.Join(dir, "audit.log")
 	logger := audit.New(path)
 	if err := logger.Log(audit.Entry{
 		DB: dbName, Status: status, Error: errCode,
@@ -149,8 +137,8 @@ func logAudit(cfg *config.Config, dbName, status, errCode, sql string, rows int,
 	}
 }
 
-// tableRe extracts table names from simple FROM/JOIN clauses.
-var tableRe = regexp.MustCompile(`(?i)(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)`)
+// tableRe extracts table names from simple FROM/JOIN clauses, handling schema-qualified names.
+var tableRe = regexp.MustCompile(`(?i)(?:FROM|JOIN)\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)`)
 
 func updateCache(cfg *config.Config, dbName, sql string) {
 	matches := tableRe.FindAllStringSubmatch(sql, -1)
@@ -161,18 +149,14 @@ func updateCache(cfg *config.Config, dbName, sql string) {
 	if len(tables) == 0 {
 		return
 	}
-	path := filepath.Join(hqDir(), "cache", "table_usage.json")
+	dir, err := hqDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "# cache write failed: %v\n", err)
+		return
+	}
+	path := filepath.Join(dir, "cache", "table_usage.json")
 	c := cache.New(path)
 	if err := c.Increment(dbName, tables); err != nil {
 		fmt.Fprintf(os.Stderr, "# cache write failed: %v\n", err)
 	}
-}
-
-func configPath() string {
-	return filepath.Join(hqDir(), "config.yaml")
-}
-
-func hqDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".hq")
 }
