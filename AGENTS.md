@@ -88,32 +88,31 @@ Never overwrite an entry with `confirmed_by_user: true` unless the user explicit
 
 Follow these steps in order for every natural language query.
 
-**Step 1 — Discover databases**
+**Step 1 — Session init (run once per session, skip if already done)**
+
+On the **first query of a session**, run all of the following. On subsequent queries in the same session, skip this step entirely and use the context already loaded.
+
 ```bash
 hq db list
 ```
 - If one database is configured: use it automatically.
 - If multiple databases exist and the user has not specified one: list them and ask which to use.
 
-**Step 2 — Load knowledge assets**
-- Read `~/.hq/knowledge/glossary.md` (if it exists)
-- Read `~/.hq/knowledge/mapping.json` (if it exists)
-- Apply the glossary to resolve business terms in the question.
-- Use `mapping.json` to pre-populate known table relationships.
+Read `~/.hq/knowledge/glossary.md` (if it exists) and `~/.hq/knowledge/mapping.json` (if it exists). Apply the glossary to resolve business terms. Use `mapping.json` to pre-populate known table relationships.
 
-**Step 3 — Identify relevant tables**
+**Step 2 — Identify relevant tables**
 - Use glossary + `mapping.json` to determine candidate tables.
 - Use `~/.hq/cache/table_usage.json` to prioritize frequently queried tables.
 - If the candidate tables are still unclear, ask the user one focused clarifying question.
 
-**Step 4 — Introspect schema**
+**Step 3 — Introspect schema**
 ```bash
 hq schema --db <name> --table <table_name>
 ```
 - Load only tables plausibly relevant to the question. Do not load the full schema.
 - Use the output to confirm column names, types, primary keys, and foreign keys.
 
-**Step 5 — Generate SQL**
+**Step 4 — Generate SQL**
 - Apply this knowledge hierarchy (in order):
   1. Business glossary
   2. `mapping.json` relationships
@@ -123,20 +122,20 @@ hq schema --db <name> --table <table_name>
 - Generate only `SELECT` queries. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, EXEC, CALL, or REPLACE.
 - Never hallucinate column or table names. Verify with `hq schema` if unsure.
 
-**Step 6 — Show interpretation and request confirmation**
+**Step 5 — Show interpretation and request confirmation**
 
 Before executing, display the full confirmation block (see Query Confirmation Policy section) and wait for explicit user confirmation. Do NOT execute if the user declines or requests changes.
 
-**Step 7 — Execute**
+**Step 6 — Execute**
 ```bash
 hq query --db <name> --sql "..." --header
 ```
 Capture stdout (CSV rows) and stderr (metadata + errors).
 
-**Step 8 — Present result**
+**Step 7 — Present result**
 Count data rows in the CSV output (excluding the header line). Apply the Result Presentation rules.
 
-**Step 9 — Update knowledge assets**
+**Step 8 — Update knowledge assets**
 If any new table mapping or relationship was confirmed during this session, update `glossary.md` and/or `mapping.json` immediately.
 
 ## Query Confirmation Policy
