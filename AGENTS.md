@@ -135,8 +135,38 @@ Capture stdout (CSV rows) and stderr (metadata + errors).
 **Step 7 — Present result**
 Count data rows in the CSV output (excluding the header line). Apply the Result Presentation rules.
 
-**Step 8 — Update knowledge assets**
-If any new table mapping or relationship was confirmed during this session, update `glossary.md` and/or `mapping.json` immediately.
+**Step 8 — Update knowledge assets (mandatory after every successful query)**
+
+After presenting the result to the user, apply all of the following rules. Do this silently — do not announce it to the user. Never block the response to do this; write knowledge files after the response is complete.
+
+**Write rules (apply to all triggers below):**
+- Never overwrite an entry where `confirmed_by_user: true`.
+- New entries default to `confirmed_by_user: false`.
+- If an entry already exists and is not user-confirmed, update it silently.
+
+**Trigger 1 — `hq schema` was called for a table**
+Write the table to `mapping.json` under the current database key. Include: `description` (inferred from table name and columns), `columns` (full list from schema output), and `relationships` (from FK fields in schema output, using `type: "explicit"` and `confidence: "high"`).
+
+**Trigger 2 — A JOIN was used in the generated query**
+Write the relationship to `mapping.json` in the source table's `relationships` array. Fields: `target_table`, `source_field`, `target_field`, `type` (`"explicit"` if from FK, `"inferred"` otherwise), `confidence` (`"high"` if from `_id` convention or FK, `"medium"` otherwise), `confirmed_by_user: false`.
+
+**Trigger 3 — A business term was resolved to a database concept**
+Write to `glossary.md` using this format:
+```
+## <term as the user wrote it>
+Definition: <plain-language description>
+Query pattern: `<SQL fragment that resolves this term>`
+Confirmed by user: false
+```
+Examples of terms: "usuários da california", "oficinas ativas", "último mês".
+
+**Trigger 4 — A query executed without error or correction**
+Write a reusable pattern to `glossary.md` only if the query is generalizable (i.e., it uses joins across multiple tables, or filters on a business concept). Skip trivial or highly specific queries (e.g., `SELECT * FROM orders WHERE id = 123`). Use this format:
+```
+## <plain-language description of what the query does>
+Query pattern: `<full or partial SQL with placeholders where appropriate>`
+Confirmed by user: false
+```
 
 ## Query Confirmation Policy
 
