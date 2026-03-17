@@ -281,6 +281,27 @@ func TestStreamCSV_injectionRedacted(t *testing.T) {
 	}
 }
 
+func TestStreamCSV_byteSliceValue_rendersAsString(t *testing.T) {
+	// MariaDB/MySQL drivers return varchar/text columns as []byte.
+	// StreamCSV must convert []byte to string instead of printing byte values.
+	db, mock := newMockDB(t)
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"email"}).
+		AddRow([]byte("user@example.com"))
+	mock.ExpectQuery("SELECT").WillReturnRows(rows)
+
+	var buf bytes.Buffer
+	_, err := executor.StreamCSV(context.Background(), db, "SELECT email FROM users", false, &buf, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := strings.TrimSpace(buf.String())
+	if got != "user@example.com" {
+		t.Errorf("expected 'user@example.com', got: %s", got)
+	}
+}
+
 func TestStreamCSV_noRules_passthrough(t *testing.T) {
 	db, mock := newMockDB(t)
 	defer db.Close()

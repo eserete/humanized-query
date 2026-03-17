@@ -111,6 +111,8 @@ func StreamCSV(ctx context.Context, db *sql.DB, query string, includeHeader bool
 			var cell string
 			if v == nil {
 				cell = ""
+			} else if b, ok := v.([]byte); ok {
+				cell = string(b)
 			} else {
 				cell = fmt.Sprintf("%v", v)
 			}
